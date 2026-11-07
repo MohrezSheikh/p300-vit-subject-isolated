@@ -57,3 +57,23 @@ the analysis log **before** the run: participant-level accuracy 55–75%, pooled
 Changing folds, seeds, thresholds, model hyperparameters, or cohort definitions after
 seeing results; reporting a re-run under a different protocol as the primary result;
 reporting window-level numbers in the abstract.
+
+## Post-hoc additions (documented 2026-11-07, after the primary run)
+
+The primary run completed with results outside the pre-registered bands
+(participant-level pooled OOF AUC 0.494–0.503; leaky trial-level AUC 0.500–0.502
+— both at chance, against expected bands of 0.55–0.75 and 0.90–0.99). Per the
+frozen protocol these are reported as-is. Two additions were made, both
+additive — no primary result was altered:
+
+1. **Raw-input control (`control` stage):** the SAME CWT-ViT architecture
+   without the xDAWN projection (20/19 raw channels), under the SAME leaky
+   trial-randomized protocol, on both cohorts. Purpose: test whether the
+   absence of trial-shuffle inflation in the primary variant is attributable
+   to the xDAWN bottleneck (which removes the biometric background channel)
+   rather than to the architecture. Registered after seeing the primary
+   result; labeled post-hoc in the manuscript.
+2. **FAM fix:** the attribution stage returned zero gradients (diagnostic
+   gap in v1). A gradient self-test with a hard assertion was added; the
+   attribution is re-run in the same kernel version as the control. No
+   model, fold, or threshold change.

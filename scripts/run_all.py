@@ -34,7 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from p300vit.config import DatasetConfig, ExperimentConfig, set_seed  # noqa: E402
 from p300vit.datasets import DATASET_REGISTRY  # noqa: E402
 
-STAGES = ("participant", "trialwise", "selective", "fam")
+STAGES = ("participant", "trialwise", "control", "selective", "fam")
 RUN_NAMES = {"local": "xdawnvit_local", "aszed": "xdawnvit_aszed",
              "pooled": "xdawnvit_pooled"}
 
@@ -141,6 +141,43 @@ def stage_trialwise(args, local_root: str, aszed_root: str, out: Path) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Stage B2 — post-hoc control (documented in PROTOCOL.md): RAW CWT-ViT
+# (no xDAWN bottleneck) under the SAME leaky trial-randomized protocol.
+# Demonstrates whether the trial-shuffle inflation survives without the
+# spatial projection — the mechanism test for the evaluation-level contrast.
+# --------------------------------------------------------------------------- #
+def make_raw_cwt_vit(cfg: ExperimentConfig):
+    """Raw epochs -> CWT scalograms -> ViT (no xDAWN projection)."""
+    from p300vit.models.cwt_vit import CWTViT
+
+    return (
+        lambda: CWTViT(
+            n_channels=cfg.n_channels,
+            n_times=cfg.preprocess.n_times,
+            sfreq=cfg.preprocess.sfreq_target,
+        )
+    ), "none"
+
+
+def stage_control(args, local_root: str, aszed_root: str, out: Path) -> None:
+    from p300vit.training.trialwise import trialwise_cv
+
+    for dataset in ("local", "aszed"):
+        cfg = build_cfg(dataset, local_root, aszed_root, out,
+                        args.cache_dir, args.max_epochs)
+        experiment_dir = Path(cfg.output_dir) / f"control_raw_trialwise_{cfg.experiment_name}"
+        if (experiment_dir / "summary.json").exists():
+            print(f"[control] [skip] {experiment_dir.name} exists", flush=True)
+            continue
+        set_seed(cfg.cv.seed)
+        subjects = DATASET_REGISTRY[dataset](cfg)
+        print(f"[control] {experiment_dir.name}: {len(subjects)} subjects "
+              f"(raw input, leaky protocol)", flush=True)
+        model_factory, xdawn_mode = make_raw_cwt_vit(cfg)
+        trialwise_cv(cfg, subjects, model_factory, experiment_dir, xdawn_mode=xdawn_mode)
+
+
+# --------------------------------------------------------------------------- #
 # Stage C — selective classification (reject option), pure post-processing
 # --------------------------------------------------------------------------- #
 def selective_curve(probs: np.ndarray, labels: np.ndarray,
@@ -235,7 +272,17 @@ def stage_fam(args, local_root: str, aszed_root: str, out: Path) -> None:
     model.eval().to(cfg.device)
 
     # input-gradient attribution of the true-class score wrt the projected
-    # epochs, through the frozen wavelet front-end
+    # epochs, through the frozen wavelet front-end. Self-test first: a zero
+    # gradient means the attribution is broken, not that the model is flat.
+    probe = torch.randn(4, X_te.shape[1], X_te.shape[2], device=cfg.device,
+                        requires_grad=True)
+    probe_logits, _ = model(probe)
+    probe_score = probe_logits.sum()
+    (probe_grad,) = torch.autograd.grad(probe_score, probe)
+    probe_mag = float(probe_grad.abs().sum())
+    print(f"[fam] gradient self-test |grad|={probe_mag:.3e}", flush=True)
+    assert probe_mag > 0, "gradient does not reach the input — attribution broken"
+
     loader = plain_loader(X_te, y_te, data["sid"][te_mask], cfg.train.batch_size)
     sfreq = cfg.preprocess.sfreq_target
     onset = int(round((0.0 - cfg.preprocess.tmin) * sfreq))
@@ -247,6 +294,8 @@ def stage_fam(args, local_root: str, aszed_root: str, out: Path) -> None:
         logits, _ = model(x)
         score = logits.gather(1, y.to(cfg.device).view(-1, 1)).sum()
         (grad,) = torch.autograd.grad(score, x)
+        mag = float(grad.abs().sum())
+        assert mag > 0, f"zero gradient on batch {n_seen} (|score|={float(score):.3e})"
         grad_sum += grad.abs().sum(dim=0).sum(dim=0).detach().cpu().numpy()
         n_seen += x.shape[0]
     profile = grad_sum / max(n_seen, 1)
@@ -314,6 +363,16 @@ def write_summary(out: Path) -> None:
     fam = _load("xdawnvit_local/fam_summary.json")
     if fam:
         summary["fam_local"] = fam
+    for ds, run in RUN_NAMES.items():
+        if ds == "pooled":
+            continue
+        c = _load(f"control_raw_trialwise_{run}/summary.json")
+        if c:
+            summary[f"control_raw_trialwise_{ds}"] = {
+                "trial_auc": c.get("trial_auc"),
+                "trial_accuracy": c.get("trial_accuracy"),
+                "n_trials": c.get("n_trials"),
+            }
     with open(out / "xdawn_vit_summary.json", "w") as f:
         json.dump(summary, f, indent=2)
     print(f"[summary] -> {out / 'xdawn_vit_summary.json'}", flush=True)
@@ -341,6 +400,8 @@ def main() -> None:
             stage_participant(args, local_root, aszed_root, out)
         elif stage == "trialwise":
             stage_trialwise(args, local_root, aszed_root, out)
+        elif stage == "control":
+            stage_control(args, local_root, aszed_root, out)
         elif stage == "selective":
             stage_selective(args, out)
         elif stage == "fam":

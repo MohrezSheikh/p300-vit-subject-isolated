@@ -1,7 +1,7 @@
 {
   "id": "mmdation/p300vit-standalone",
   "title": "p300vit-standalone",
-  "code_file": "kaggle/p300vit-leakfree.ipynb",
+  "code_file": "p300vit-leakfree.ipynb",
   "language": "python",
   "kernel_type": "notebook",
   "is_private": true,

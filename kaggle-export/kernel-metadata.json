@@ -1,0 +1,14 @@
+{
+  "id": "mmdation/p300vit-results-export",
+  "title": "p300vit-results-export",
+  "code_file": "p300vit-results-export.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_internet": false,
+  "dataset_sources": [],
+  "kernel_sources": [
+    "mmdation/p300vit-standalone"
+  ]
+}
