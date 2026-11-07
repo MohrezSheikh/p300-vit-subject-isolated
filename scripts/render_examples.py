@@ -194,6 +194,46 @@ def main() -> None:
         json.dump(provenance, f, indent=2)
     print(f"[figures] -> {out}/fig7_xdawn.png, fig8_scalograms.png", flush=True)
 
+    # ---------------- Figure 9: conventional ERP grand averages --------- #
+    groups = {"healthy control": [], "schizophrenia": []}
+    for subj in subjects:
+        evoked = subj.data.mean(axis=0)                     # [C, T] subject average
+        groups["healthy control" if subj.label == 0 else "schizophrenia"].append(evoked)
+    ch_names = list(subjects[0].ch_names)
+    fig, axes = plt.subplots(1, 2, figsize=(11.0, 3.6), sharey=True)
+    erp_stats = {}
+    for ax, ch in zip(axes, ("CZ", "PZ")):
+        ci = ch_names.index(ch)
+        for name, evokeds in groups.items():
+            arr = np.stack([e[ci] for e in evokeds])        # [n_subj, T]
+            mean, sem = arr.mean(axis=0), arr.std(axis=0) / np.sqrt(len(arr))
+            color = "#3f6bb5" if name == "healthy control" else "#c2504d"
+            ax.plot(t_ms, mean, lw=1.3, color=color, label=name)
+            ax.fill_between(t_ms, mean - sem, mean + sem, color=color, alpha=0.18)
+            win = (t_ms >= 250) & (t_ms <= 500)
+            pk = int(np.argmax(mean[win]))
+            erp_stats.setdefault(ch, {})[name] = {
+                "n_subjects": int(len(evokeds)),
+                "peak_latency_ms": round(float(t_ms[win][pk]), 1),
+                "peak_amplitude_z": round(float(mean[win][pk]), 3),
+            }
+    for ax in axes:
+        ax.axvline(0, color="k", ls=":", lw=0.9)
+        ax.axvspan(250, 500, color="0.92", zorder=0)
+        ax.set_xlabel("Time from stimulus (ms)")
+    axes[0].set_ylabel("Amplitude (z-scored a.u.)")
+    axes[0].set_title("Cz"); axes[1].set_title("Pz")
+    axes[0].legend(fontsize=8, loc="lower right")
+    fig.suptitle("Grand-average target ERPs per group (shaded: SEM across participants)", fontsize=10)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(out / "fig9_erp.png", dpi=220)
+    plt.close(fig)
+    provenance["figure_9"] = {"channels": ["CZ", "PZ"], "groups": {k: len(v) for k, v in groups.items()},
+                              "peaks": erp_stats}
+    with open(out / "example_provenance.json", "w") as f:
+        json.dump(provenance, f, indent=2)
+    print(f"[figures] ERP grand averages rendered -> {out}/fig9_erp.png", flush=True)
+
 
 if __name__ == "__main__":
     main()
