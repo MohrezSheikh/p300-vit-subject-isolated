@@ -43,6 +43,9 @@ def find_mounted(name: str) -> Path | None:
     return None
 
 
+FREQS = (1, 2, 4, 6, 8, 10, 12, 16, 20, 24, 30)  # model CWT front-end scales
+
+
 def build_cfg(local_root: str, cache_dir: str) -> ExperimentConfig:
     cfg = ExperimentConfig(
         experiment_name="figures",
@@ -165,7 +168,9 @@ def main() -> None:
             if r == 0:
                 ax.set_title(f"component {c + 1}", fontsize=9)
             if c == 0:
-                ax.set_ylabel(f"{name}\nfrequency (Hz)", fontsize=8)
+                ax.set_yticks(range(len(FREQS)))
+                ax.set_yticklabels([str(f) for f in FREQS], fontsize=7)
+                ax.set_ylabel(f"{name}\nMorlet scale (Hz)", fontsize=8)
             if r == 1:
                 ax.set_xlabel("Time from stimulus (ms)")
     fig.suptitle("Single-trial scalograms — the exact ViT inputs (log-magnitude; per-frequency standardized for display)",
@@ -181,7 +186,7 @@ def main() -> None:
                      "n_components": int(projected.shape[0])},
         "figure_8": {"control": str(control.subject_id),
                      "schizophrenia": str(patient.subject_id),
-                     "trial_index": 0, "scales": "11 Morlet, 1-30 Hz",
+                     "trial_index": 0, "scales": list(FREQS), "note": "scales are irregularly spaced; at the lowest scales the 7-cycle wavelet spans the whole 1-s epoch, so convolution edge behavior is part of the representation",
                      "display": "log1p magnitude; per-frequency standardized for display"},
         "pipeline": "frozen preprocessing + fold-4 xDAWN + model CWT front-end",
     }
