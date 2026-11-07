@@ -69,8 +69,29 @@ def test_projection_feeds_model():
     assert logits.shape == (5, 2)
 
 
+def test_frontend_responds_to_input():
+    """The scalogram front-end must be a function of the input.
+
+    Regression test for the [2F, 1, L] buffer-shape bug that produced a
+    constant scalogram (sqrt(zf^2 + zi^2 + eps) with zf = zi = 0) — a model
+    that sees a constant input yields constant predictions, zero input
+    gradients, and exactly-chance AUC under every protocol.
+    """
+    import torch
+    from p300vit.models.cwt_vit import CWTScalogram
+
+    cwt = CWTScalogram(sfreq=200.0)
+    assert tuple(cwt.kernels.shape) == (11, 1, 2, 1400), cwt.kernels.shape
+    x = torch.randn(2, 4, 200, requires_grad=True)
+    scal = cwt(x)
+    assert float(scal.std()) > 1e-3, "scalogram is constant — front-end broken"
+    (g,) = torch.autograd.grad(scal.sum(), x)
+    assert float(g.abs().sum()) > 0, "no gradient reaches the input"
+
+
 if __name__ == "__main__":
     test_factory_and_forward()
     test_xdawn_fold_dependence()
     test_projection_feeds_model()
+    test_frontend_responds_to_input()
     print("all xDAWN->CWT->ViT synthetic checks passed")

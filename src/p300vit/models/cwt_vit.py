@@ -31,10 +31,12 @@ class CWTScalogram(nn.Module):
         kernels = [morlet_kernel(f, sfreq) for f in freqs]
         max_len = max(k.shape[-1] for k in kernels)
         padded = [torch.nn.functional.pad(k, (0, max_len - k.shape[-1])) for k in kernels]
-        # weight tensor [C*F, 2, L]; applied per EEG channel via groups
+        # per-frequency complex kernel: buffer [F, 1, 2, L]; forward slices
+        # kernels[f_idx] -> [1, 2, L], k[0, 0] / k[0, 1] -> the real / imag
+        # vectors of length L (applied per EEG channel via groups)
         self.register_buffer(
-            "kernels", torch.cat(padded, dim=0).unsqueeze(1)
-        )  # [F, 1, 2, L] placeholder shape
+            "kernels", torch.cat([k.unsqueeze(0) for k in padded], dim=0).unsqueeze(1)
+        )  # [F, 1, 2, L]
         self.n_freqs = len(freqs)
         self.max_len = max_len
 
