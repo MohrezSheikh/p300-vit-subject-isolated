@@ -192,6 +192,9 @@ def main() -> None:
     ap.add_argument("--local-root", default=None)
     ap.add_argument("--aszed-root", default=None)
     ap.add_argument("--epochs", type=int, default=None, help="smoke-test override")
+    ap.add_argument("--fixed-epochs", type=int, default=None,
+                    help="train for exactly N epochs with early stopping disabled "
+                         "(removes model-selection noise on small cohorts)")
     ap.add_argument("--device", default=None, choices=["cpu", "cuda"])
     ap.add_argument("--aug-strength", default="strong", choices=list(AUG_PRESETS))
     ap.add_argument("--only", nargs="*", default=None,
@@ -237,6 +240,9 @@ def main() -> None:
                   flush=True)
             continue
         cfg = load_config(cfg_paths[cohort])
+        if args.fixed_epochs:
+            cfg.train.max_epochs = args.fixed_epochs
+            cfg.train.patience = args.fixed_epochs   # never early-stop
         if args.device:
             cfg.device = args.device
             if args.device == 'cpu':
