@@ -138,6 +138,37 @@ def test_scalogram_patch_coverage():
     assert logits.shape == (2, 2), logits.shape
 
 
+def test_augmentation_is_label_preserving_and_eval_is_untouched():
+    """Augmentation contract: training batches only, labels preserved.
+
+    * ``EpochAugment`` must return the same shape and the same labels (mixup is
+      same-class only), and must actually change the values.
+    * SpecAugment masking must be a no-op in eval mode, so validation/test
+      inputs are never masked.
+    """
+    import torch
+    from p300vit.data.augment import EpochAugment
+    from p300vit.models.cwt_vit import CWTViT
+
+    rng = np.random.default_rng(0)
+    X = torch.from_numpy(rng.normal(size=(16, 4, 200)).astype(np.float32))
+    y = torch.tensor([0] * 8 + [1] * 8)
+    Xa, ya = EpochAugment(seed=0)(X, y)
+    assert Xa.shape == X.shape and ya.shape == y.shape
+    assert torch.equal(y, ya), "augmentation changed labels"
+    assert not torch.allclose(X, Xa), "augmentation did nothing"
+
+    model = CWTViT(n_channels=4, n_times=200, sfreq=200.0,
+                   embed_dim=64, depth=2, heads=4, mask_scalogram=True)
+    model.eval()
+    x = torch.randn(2, 4, 200)
+    with torch.no_grad():
+        a, _ = model(x)
+        b, _ = model(x)
+    assert torch.allclose(a, b), "eval-mode output is not deterministic (masking leaked)"
+
+
+
 if __name__ == "__main__":
     test_factory_and_forward()
     test_xdawn_fold_dependence()
@@ -145,4 +176,5 @@ if __name__ == "__main__":
     test_frontend_responds_to_input()
     test_every_band_responds_to_its_own_frequency()
     test_scalogram_patch_coverage()
+    test_augmentation_is_label_preserving_and_eval_is_untouched()
     print("all xDAWN->CWT->ViT synthetic checks passed")

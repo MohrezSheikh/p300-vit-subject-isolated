@@ -115,6 +115,9 @@ class CWTViT(nn.Module):
         depth: int = 6,
         heads: int = 8,
         dropout: float = 0.1,
+        mask_scalogram: bool = False,
+        mask_time_max: int = 30,
+        mask_freq_max: int = 2,
     ):
         super().__init__()
         self.cwt = CWTScalogram(sfreq=sfreq, freqs=freqs)
@@ -132,6 +135,11 @@ class CWTViT(nn.Module):
         n_tokens = grid_h * grid_w                   # 39 tokens (+ CLS = 40)
         self._grid = (grid_h, grid_w)
         self._padded_shape = (grid_h * patch, grid_w * patch)  # (48, 208)
+        # SpecAugment-style masking of the log-scalogram, applied only while
+        # training (leak-free: it never touches validation or test inputs).
+        self.mask_scalogram = mask_scalogram
+        self.mask_time_max = mask_time_max
+        self.mask_freq_max = mask_freq_max
         self.cls = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.pos = nn.Parameter(torch.zeros(1, n_tokens + 1, embed_dim))
         nn.init.trunc_normal_(self.pos, std=0.02)
@@ -142,6 +150,26 @@ class CWTViT(nn.Module):
         self.head = nn.Linear(embed_dim, 2)
         self._n_tokens = n_tokens
 
+    def _mask(self, scal: torch.Tensor) -> torch.Tensor:
+        """SpecAugment-style time/frequency masking of the log-scalogram.
+
+        Two zero-filled time spans (<= ``mask_time_max`` samples) and two
+        zero-filled band rows (<= ``mask_freq_max`` bands) per example. Applied
+        to training batches only; a no-op in eval mode.
+        """
+        B, H, W = scal.shape
+        for b in range(B):
+            for _ in range(2):
+                if W > 1:
+                    width = int(torch.randint(1, min(self.mask_time_max, W) + 1, (1,)))
+                    start = int(torch.randint(0, W - width + 1, (1,)))
+                    scal[b, :, start:start + width] = 0.0
+                if H > 1:
+                    height = int(torch.randint(1, min(self.mask_freq_max, H) + 1, (1,)))
+                    start = int(torch.randint(0, H - height + 1, (1,)))
+                    scal[b, start:start + height, :] = 0.0
+        return scal
+
     def forward(self, x):
         scal = self.cwt(x)                                  # [B, C*F, T]
         scal = torch.log1p(scal)                            # log-compression
@@ -151,6 +179,8 @@ class CWTViT(nn.Module):
         pad_h, pad_w = (-H) % self.patch, (-W) % self.patch
         if pad_h or pad_w:
             scal = torch.nn.functional.pad(scal, (0, pad_w, 0, pad_h), mode="replicate")
+        if self.training and self.mask_scalogram:
+            scal = self._mask(scal)
         tokens = self.patch_embed(scal.unsqueeze(1))        # [B, n_tokens, D]
         tokens = tokens[:, : self._n_tokens]
         cls = self.cls.expand(x.shape[0], -1, -1)

@@ -1,0 +1,72 @@
+experiment_name: xdawnvit_aszed
+datasets:
+- name: aszedeeg
+  root: /kaggle/input/datasets/mmdation/aszedeeg
+  channels:
+  - FP1
+  - FP2
+  - F7
+  - F3
+  - FZ
+  - F4
+  - F8
+  - T3
+  - C3
+  - CZ
+  - C4
+  - T4
+  - T5
+  - P3
+  - PZ
+  - P4
+  - T6
+  - O1
+  - O2
+  - FPZ
+  sfreq: 200.0
+  label_map:
+    control: 0
+    schizophrenia: 1
+preprocess:
+  l_freq: 0.5
+  h_freq: 30.0
+  notch_freqs:
+  - 50.0
+  tmin: -0.2
+  tmax: 0.8
+  baseline:
+  - -0.2
+  - 0.0
+  reject_uv: 120.0
+  artifact_rejection: robust
+  robust_k: 5.0
+  flat_uv: 5.0
+  n_times: 200
+  sfreq_target: 200.0
+  trial_zscore: true
+xdawn:
+  n_components: 4
+  shrinkage: 0.0001
+train:
+  optimizer: adamw
+  lr: 0.0003
+  weight_decay: 0.01
+  batch_size: 32
+  max_epochs: 60
+  patience: 8
+  label_smoothing: 0.05
+  grad_clip: 1.0
+  val_frac_subjects: 0.2
+  amp: true
+  num_workers: 2
+cv:
+  n_folds: 5
+  seed: 42
+  stratify_by: label
+output_dir: /kaggle/working/results/xdawn_vit
+figures_dir: figures
+cache_dir: /kaggle/working/cache
+device: cuda
+bootstrap_iters: 10000
+non_inferiority_margin: 0.05
+n_channels: 19
