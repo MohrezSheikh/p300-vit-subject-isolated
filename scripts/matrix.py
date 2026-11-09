@@ -226,6 +226,9 @@ def main() -> None:
         wanted = set(tuple(s.split(":")) for s in args.only)
         cells = [c for c in cells if (c[0], c[1], c[2], "aug" if c[3] else "noaug") in wanted]
 
+    if not cells:
+        raise SystemExit("[matrix] --only matched no cells; check the "
+                         "'cohort:montage:model:aug' spelling (space-separated)")
     rows = []
     cohort_cache = {}
     for cohort, montage, model, aug in cells:
