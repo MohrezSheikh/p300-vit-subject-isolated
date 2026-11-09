@@ -62,6 +62,19 @@ MODELS = {
     "lite": dict(embed_dim=128, depth=4, heads=4),
 }
 
+# Augmentation presets. "strong" is the aggressive recipe that collapsed the
+# lite model (best epoch 1-2, near-constant validation probabilities);
+# "weak" is the fair retest: less noise, +/-1 sample shift, no mixup, short
+# masks and light component dropout.
+AUG_PRESETS = {
+    "strong": dict(p_noise=0.5, snr_db=15.0, p_scale=0.5, scale=(0.90, 1.10),
+                   p_shift=0.5, max_shift=2, p_mixup=0.3, p_chan_drop=0.2,
+                   mask_time_max=30, mask_freq_max=2),
+    "weak":   dict(p_noise=0.4, snr_db=25.0, p_scale=0.4, scale=(0.95, 1.05),
+                   p_shift=0.4, max_shift=1, p_mixup=0.0, p_chan_drop=0.1,
+                   mask_time_max=10, mask_freq_max=1),
+}
+
 
 # ------------------------------------------------------------- subjects ----
 def load_subjects(cfg, dataset_key: str, roots: dict):
@@ -96,7 +109,8 @@ def subset(subjects, chans):
 
 
 # ---------------------------------------------------------------- cells ----
-def run_cell(cohort, montage, model_name, aug, cfg, subjects, out_root, epochs):
+def run_cell(cohort, montage, model_name, aug, cfg, subjects, out_root, epochs,
+             aug_strength="strong"):
     n_ch = len(subjects[0].ch_names)
     K = min(4, n_ch)
     cfg.xdawn.n_components = K
@@ -104,8 +118,14 @@ def run_cell(cohort, montage, model_name, aug, cfg, subjects, out_root, epochs):
         cfg.train.max_epochs = epochs
 
     m = MODELS[model_name]
+    preset = AUG_PRESETS[aug_strength]
     augment_fn = (
-        EpochAugment(seed=cfg.cv.seed) if aug else augment_noop
+        EpochAugment(seed=cfg.cv.seed,
+                     p_noise=preset["p_noise"], snr_db=preset["snr_db"],
+                     p_scale=preset["p_scale"], scale=preset["scale"],
+                     p_shift=preset["p_shift"], max_shift=preset["max_shift"],
+                     p_mixup=preset["p_mixup"], p_chan_drop=preset["p_chan_drop"])
+        if aug else augment_noop
     )
 
     def factory():
@@ -115,15 +135,26 @@ def run_cell(cohort, montage, model_name, aug, cfg, subjects, out_root, epochs):
             sfreq=cfg.preprocess.sfreq_target,
             embed_dim=m["embed_dim"], depth=m["depth"], heads=m["heads"],
             mask_scalogram=bool(aug),
+            mask_time_max=preset["mask_time_max"],
+            mask_freq_max=preset["mask_freq_max"],
         )
 
-    exp_dir = Path(out_root) / f"{cohort}_{montage}_{model_name}_{'aug' if aug else 'noaug'}"
+    tag = f"aug_{aug_strength}" if aug else "noaug"
+    exp_dir = Path(out_root) / f"{cohort}_{montage}_{model_name}_{tag}"
     t0 = time.time()
     res = run_cv(cfg, subjects, factory, exp_dir, xdawn_mode="xdawn",
                  augment=(augment_fn if aug else None))
+    folds = json.loads((exp_dir / "summary.json").read_text())["folds"]
+    best_eps = [f["best_epoch"] for f in folds]
+    val_aucs = [f["best_val_auc"] for f in folds]
     return {
         "cohort": cohort, "montage": montage, "model": model_name,
-        "augment": bool(aug), "n_channels": n_ch, "K": K,
+        "augment": bool(aug), "aug_strength": (aug_strength if aug else None),
+        "n_channels": n_ch, "K": K,
+        "mean_best_epoch": float(np.mean(best_eps)),
+        "n_folds_stalled": int(sum(e <= 2 for e in best_eps)),
+        "mean_val_auc": float(np.mean(val_aucs)),
+        "did_not_train": bool(sum(e <= 2 for e in best_eps) >= 3),
         "n_params": int(count_parameters(factory())),
         "n_subjects": int(res["n_subjects"]),
         "pooled_auc_raw": float(res["metrics"]["auc"]),
@@ -162,6 +193,7 @@ def main() -> None:
     ap.add_argument("--aszed-root", default=None)
     ap.add_argument("--epochs", type=int, default=None, help="smoke-test override")
     ap.add_argument("--device", default=None, choices=["cpu", "cuda"])
+    ap.add_argument("--aug-strength", default="strong", choices=list(AUG_PRESETS))
     ap.add_argument("--only", nargs="*", default=None,
                     help="restrict to cells 'cohort:montage:model:aug'")
     args = ap.parse_args()
@@ -221,9 +253,11 @@ def main() -> None:
         print(f"\n===== {cohort} | {montage} | {model} | aug={aug} "
               f"(ch={len(subs[0].ch_names)}, K={min(4, len(subs[0].ch_names))}) =====",
               flush=True)
-        row = run_cell(cohort, montage, model, aug, cfg, subs, out_root, args.epochs)
+        row = run_cell(cohort, montage, model, aug, cfg, subs, out_root, args.epochs,
+                       aug_strength=args.aug_strength)
         rows.append(row)
-        print(f"[matrix] {cfg.experiment_name}: raw AUC {row['pooled_auc_raw']:.4f} "
+        print(f"[matrix] {cfg.experiment_name}: best_epoch~{row['mean_best_epoch']:.1f} "
+              f"(stalled {row['n_folds_stalled']}/5) raw AUC {row['pooled_auc_raw']:.4f} "
               f"| acc {row['acc_at_0.5_raw']:.4f} | {row['n_params']:,} params "
               f"| {row['seconds']/60:.1f} min", flush=True)
         (out_root / "matrix_rows.json").write_text(json.dumps(rows, indent=2))
@@ -232,12 +266,14 @@ def main() -> None:
     (out_root / "matrix_summary.json").write_text(json.dumps(rows, indent=2))
 
     # plain-text table
-    lines = [f"{'cohort':<9}{'montage':<9}{'model':<6}{'aug':<5}{'params':>10}"
-             f"{'rawAUC':>8}{'calAUC':>8}{'calAcc':>8}{'min':>7}"]
+    lines = [f"{'cohort':<9}{'montage':<9}{'model':<6}{'aug':<10}{'ep~':>5}{'stall':>6}"
+             f"{'params':>10}{'rawAUC':>8}{'calAUC':>8}{'calAcc':>8}{'min':>7}"]
     for r in rows:
         lines.append(
             f"{r['cohort']:<9}{r['montage']:<9}{r['model']:<6}"
-            f"{('yes' if r['augment'] else 'no'):<5}{r['n_params']:>10,}"
+            f"{(r.get('aug_strength') or 'off'):<10}"
+            f"{r.get('mean_best_epoch', 0):>5.1f}{r.get('n_folds_stalled', 0):>4}/5"
+            f"{r['n_params']:>10,}"
             f"{(r['pooled_auc_raw'] or 0):>8.4f}{(r.get('cal_auc') or 0):>8.4f}"
             f"{(r.get('cal_acc') or 0):>8.4f}{r['seconds']/60:>7.1f}")
     table = "\n".join(lines)

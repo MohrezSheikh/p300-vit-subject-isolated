@@ -5,3 +5,6 @@ figures/
 cache/
 .ipynb_checkpoints/
 .pytest_cache/
+
+results_*/
+kaggle-matrix/*.log
