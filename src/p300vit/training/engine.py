@@ -112,8 +112,14 @@ def train_model(
     X_val, y_val, sid_val,
     fold_dir: Optional[Path] = None,
     fold_seed: int = 0,
+    augment=None,
 ) -> dict:
     """Train with early stopping on validation subject-level AUC.
+
+    ``augment`` is an optional callable ``(X_batch, y_batch) -> (X', y')``
+    applied to TRAINING batches only, inside the fold, after the training-fold
+    xDAWN projection. Validation batches are never augmented (leakage
+    contract; see ``data/augment.py``).
 
     Returns a dict with the best state dict (on CPU), history, and the
     Youden threshold derived from the validation subjects.
@@ -142,6 +148,8 @@ def train_model(
         model.train()
         running_loss, n_batches = 0.0, 0
         for X, y, _ in train_loader:
+            if augment is not None:
+                X, y = augment(X, y)
             X = X.to(device, non_blocking=True)
             y = y.to(device, non_blocking=True)
             opt.zero_grad(set_to_none=True)

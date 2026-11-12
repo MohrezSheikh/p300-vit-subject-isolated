@@ -34,7 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from p300vit.config import DatasetConfig, ExperimentConfig, set_seed  # noqa: E402
 from p300vit.datasets import DATASET_REGISTRY  # noqa: E402
 
-STAGES = ("participant", "trialwise", "control", "selective", "fam")
+STAGES = ("participant", "trialwise", "control", "selective", "fam", "calibrate")
 RUN_NAMES = {"local": "xdawnvit_local", "aszed": "xdawnvit_aszed",
              "pooled": "xdawnvit_pooled"}
 
@@ -228,6 +228,50 @@ def stage_selective(args, out: Path) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Stage E — leak-free per-fold calibration of the pooled OOF probabilities
+# --------------------------------------------------------------------------- #
+def stage_calibrate(args, out: Path) -> None:
+    """Pooled OOF subject probabilities with leak-free per-fold alignment.
+
+    Each fold's Youden threshold is estimated from that fold's INNER-VALIDATION
+    subjects (written by the training harness as ``fold_*/val_preds.npz``) and
+    mapped to 0.5; the test-fold probabilities are transformed but never used
+    for fitting.  This step produces the manuscript's calibrated AUCs, so it
+    runs as part of ``--stage all`` instead of living in an ad-hoc notebook: the
+    earlier build wrote ``calibrated_pooling.json`` by hand and the artifact was
+    therefore not regenerable from the repository.
+    """
+    from sklearn.metrics import roc_auc_score
+
+    from p300vit.evaluation.stats import calibration_summary, load_oof_harmonized
+
+    payload = {}
+    for ds, run in RUN_NAMES.items():
+        if not (out / run).exists():
+            print(f"[calibrate] [skip] {run} missing", flush=True)
+            continue
+        d = load_oof_harmonized(out, run, method="threshold")
+        y, probs_harm, probs_raw = d["labels"], d["probs_harm"], d["probs_raw"]
+        acc = float(((probs_harm >= 0.5).astype(int) == y).mean())
+        payload[run] = {
+            "dataset": ds,
+            "n_subjects": int(len(y)),
+            "pooled_oof_auc_raw": float(roc_auc_score(y, probs_raw)),
+            "pooled_oof_auc_calibrated": float(roc_auc_score(y, probs_harm)),
+            "fold_mean_auc": float(d["fold_mean_auc"]),
+            "fold_sd_auc": float(d["fold_sd_auc"]),
+            "accuracy_calibrated_at_0.5": acc,
+            "calibration": calibration_summary(y, probs_harm),
+            "harmonization": d["harmonization"],
+        }
+        print(f"[calibrate] {run}: raw AUC {payload[run]['pooled_oof_auc_raw']:.4f} -> "
+              f"calibrated {payload[run]['pooled_oof_auc_calibrated']:.4f} | "
+              f"acc {acc:.4f} | {d['harmonization']}", flush=True)
+    with open(out / "calibrated_pooling.json", "w") as f:
+        json.dump(payload, f, indent=2)
+
+
+# --------------------------------------------------------------------------- #
 # Stage D — FAM: input-gradient attribution + stimulus-locking check
 # --------------------------------------------------------------------------- #
 def stage_fam(args, local_root: str, aszed_root: str, out: Path) -> None:
@@ -391,9 +435,15 @@ def main() -> None:
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    local_root, aszed_root = resolve_roots(args)
-
     stages = STAGES if args.stage == "all" else (args.stage,)
+    # ``calibrate`` and ``selective`` consume only saved artifacts, so they must
+    # run without the datasets attached (e.g. when regenerating the calibrated
+    # numbers from a downloaded results archive).
+    if any(s in ("participant", "trialwise", "control", "fam") for s in stages):
+        local_root, aszed_root = resolve_roots(args)
+    else:
+        local_root = aszed_root = None
+
     for stage in stages:
         print(f"\n===== stage: {stage} =====", flush=True)
         if stage == "participant":
@@ -406,6 +456,8 @@ def main() -> None:
             stage_selective(args, out)
         elif stage == "fam":
             stage_fam(args, local_root, aszed_root, out)
+        elif stage == "calibrate":
+            stage_calibrate(args, out)
     write_summary(out)
 
 

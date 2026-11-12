@@ -1,0 +1,225 @@
+{
+ "clinical": {
+  "n": 37,
+  "auc_raw": 0.760233918128655,
+  "auc_cal": 0.7660818713450293,
+  "auc_ci": [
+   0.7660818713450293,
+   0.5964857796665577
+  ],
+  "acc_cal": 0.7027027027027027,
+  "fold_mean": 0.7791666666666667,
+  "fold_sd": 0.2112298642606096,
+  "calib": {
+   "brier": 0.2078346071185898,
+   "log_loss": 0.6039397316076762,
+   "ece_15bin": 0.1291016552356123,
+   "auc_pr": 0.8302655525155747
+  },
+  "folds": [
+   0.4375,
+   0.875,
+   1.0,
+   0.8333333333333334,
+   0.75
+  ]
+ },
+ "ASZED": {
+  "n": 111,
+  "auc_raw": 0.693877551020408,
+  "auc_cal": 0.7702435813034891,
+  "auc_ci": [
+   0.7702435813034891,
+   0.6709023762719704
+  ],
+  "acc_cal": 0.7567567567567568,
+  "fold_mean": 0.7776068376068376,
+  "fold_sd": 0.07517836802414771,
+  "calib": {
+   "brier": 0.1948519975209043,
+   "log_loss": 0.5819535057543104,
+   "ece_15bin": 0.13898174433882032,
+   "auc_pr": 0.6334456415035706
+  },
+  "folds": [
+   0.7076923076923076,
+   0.8333333333333333,
+   0.7250000000000001,
+   0.7416666666666667,
+   0.8803418803418803
+  ]
+ },
+ "pooled": {
+  "n": 148,
+  "auc_raw": 0.6933823529411764,
+  "auc_cal": 0.6917279411764706,
+  "auc_ci": [
+   0.6917279411764706,
+   0.6091012508618142
+  ],
+  "acc_cal": 0.6216216216216216,
+  "fold_mean": 0.7122064210299504,
+  "fold_sd": 0.07945596396851809,
+  "calib": {
+   "brier": 0.22500500201142956,
+   "log_loss": 0.6502933235651813,
+   "ece_15bin": 0.11567887608563208,
+   "auc_pr": 0.6369818359388757
+  },
+  "folds": [
+   0.6785714285714286,
+   0.7420814479638009,
+   0.5927601809954751,
+   0.8,
+   0.7476190476190476
+  ]
+ },
+ "leaky_clinical": {
+  "trial_auc": 0.7640499878199839,
+  "trial_acc": 0.7088643443783631,
+  "accuracy": {
+   "point": 0.918918918918919,
+   "ci_low": 0.7809037937619998,
+   "ci_high": 0.9829564693041812
+  },
+  "auc": {
+   "point": 0.9912280701754386,
+   "ci_low": 0.9649122807017544,
+   "ci_high": 1.0
+  },
+  "sensitivity": {
+   "point": 1.0,
+   "ci_low": 0.8235330881930346,
+   "ci_high": 1.0
+  },
+  "specificity": {
+   "point": 0.8333333333333334,
+   "ci_low": 0.5858225086052259,
+   "ci_high": 0.9642149168784253
+  }
+ },
+ "leaky_ASZED": {
+  "trial_auc": 0.7555806782386745,
+  "trial_acc": 0.7110047846889952,
+  "accuracy": {
+   "point": 0.7297297297297297,
+   "ci_low": 0.6371684461875023,
+   "ci_high": 0.8096426270836287
+  },
+  "auc": {
+   "point": 0.8449637919684002,
+   "ci_low": 0.7666211697288886,
+   "ci_high": 0.9119958411801632
+  },
+  "sensitivity": {
+   "point": 0.6326530612244898,
+   "ci_low": 0.4828776911693928,
+   "ci_high": 0.7657758444633889
+  },
+  "specificity": {
+   "point": 0.8064516129032258,
+   "ci_low": 0.6863140483005372,
+   "ci_high": 0.8957903707378236
+  }
+ },
+ "control_clinical": {
+  "trial_auc": 0.8525996742087997,
+  "trial_acc": 0.7765505522514868
+ },
+ "control_ASZED": {
+  "trial_auc": 0.7314026571848005,
+  "trial_acc": 0.691866028708134
+ },
+ "fam": {
+  "model": "xdawn_cwt_vit",
+  "fold": 4,
+  "n_trials": 622,
+  "onset_sample": 40,
+  "attribution_pre_stimulus_frac": 0.2008,
+  "attribution_post_stimulus_frac": 0.7992,
+  "peak_sample": 173,
+  "peak_latency_ms": 665.0
+ },
+ "selective": [
+  {
+   "theta": 0.5,
+   "coverage": 1.0,
+   "n_covered": 111,
+   "accuracy": 0.6036,
+   "sensitivity": 0.4082,
+   "specificity": 0.7581
+  },
+  {
+   "theta": 0.55,
+   "coverage": 0.8739,
+   "n_covered": 97,
+   "accuracy": 0.6186,
+   "sensitivity": 0.3953,
+   "specificity": 0.7963
+  },
+  {
+   "theta": 0.6,
+   "coverage": 0.7387,
+   "n_covered": 82,
+   "accuracy": 0.6341,
+   "sensitivity": 0.3529,
+   "specificity": 0.8333
+  },
+  {
+   "theta": 0.65,
+   "coverage": 0.6396,
+   "n_covered": 71,
+   "accuracy": 0.6761,
+   "sensitivity": 0.3704,
+   "specificity": 0.8636
+  },
+  {
+   "theta": 0.7,
+   "coverage": 0.4324,
+   "n_covered": 48,
+   "accuracy": 0.75,
+   "sensitivity": 0.1538,
+   "specificity": 0.9714
+  },
+  {
+   "theta": 0.75,
+   "coverage": 0.3784,
+   "n_covered": 42,
+   "accuracy": 0.7857,
+   "sensitivity": 0.0,
+   "specificity": 1.0
+  },
+  {
+   "theta": 0.8,
+   "coverage": 0.3604,
+   "n_covered": 40,
+   "accuracy": 0.8,
+   "sensitivity": 0.0,
+   "specificity": 1.0
+  },
+  {
+   "theta": 0.85,
+   "coverage": 0.3243,
+   "n_covered": 36,
+   "accuracy": 0.8611,
+   "sensitivity": 0.0,
+   "specificity": 1.0
+  },
+  {
+   "theta": 0.9,
+   "coverage": 0.2523,
+   "n_covered": 28,
+   "accuracy": 0.8571,
+   "sensitivity": 0.0,
+   "specificity": 1.0
+  },
+  {
+   "theta": 0.95,
+   "coverage": 0.1081,
+   "n_covered": 12,
+   "accuracy": 0.9167,
+   "sensitivity": 0.0,
+   "specificity": 1.0
+  }
+ ]
+}

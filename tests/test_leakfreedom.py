@@ -89,9 +89,92 @@ def test_frontend_responds_to_input():
     assert float(g.abs().sum()) > 0, "no gradient reaches the input"
 
 
+def test_every_band_responds_to_its_own_frequency():
+    """Every declared band must respond to a sine at its own centre frequency.
+
+    Regression test for the second front-end bug: kernels were zero-padded to
+    the 1 Hz kernel length (1400) and convolved at that padded length with
+    ``padding = 1400 // 2``. The wavelet support then sat outside the padded
+    signal window for every band whose kernel is shorter than 1400 samples, so
+    9 of the 11 bands (4-30 Hz) returned a constant and the model only ever saw
+    1-2 Hz envelopes. The previous test passed with a single live band, which is
+    why the defect survived.
+    """
+    import numpy as np
+    import torch
+    from p300vit.models.cwt_vit import CWTScalogram
+
+    freqs = (1, 2, 4, 6, 8, 10, 12, 16, 20, 24, 30)
+    cwt = CWTScalogram(sfreq=200.0, freqs=freqs)
+    assert [int(v) for v in cwt.lengths] == [int(7.0 * 200 / f) for f in freqs]
+
+    t = np.arange(200) / 200.0
+    for i, f in enumerate(freqs):
+        xs = torch.tensor(np.sin(2 * np.pi * f * t), dtype=torch.float32).view(1, 1, 200)
+        with torch.no_grad():
+            row = cwt(xs)[0, i]          # C == 1, so row i is band i
+        assert float(row.std()) > 1e-3, f"{f} Hz band is blind to a {f} Hz sine"
+
+
+def test_scalogram_patch_coverage():
+    """The patch grid must consume every band row and every time sample.
+
+    Regression test for the floor-sized grid: 44 rows // 16 = 2 patch rows and
+    200 samples // 16 = 12 patch columns silently discarded the 20/24/30 Hz rows
+    and the last 8 samples (760-800 ms).
+    """
+    import torch
+    from p300vit.models.cwt_vit import CWTViT
+
+    model = CWTViT(n_channels=4, n_times=200, sfreq=200.0)
+    rows, cols = 4 * 11, 200
+    expected = (-(-rows // 16)) * (-(-cols // 16))
+    assert model._n_tokens == expected == 39, model._n_tokens
+    assert model._padded_shape == (48, 208), model._padded_shape
+    assert model._n_tokens * 16 * 16 >= rows * cols, "grid does not cover the image"
+
+    with torch.no_grad():
+        logits, _ = model(torch.randn(2, 4, 200))
+    assert logits.shape == (2, 2), logits.shape
+
+
+def test_augmentation_is_label_preserving_and_eval_is_untouched():
+    """Augmentation contract: training batches only, labels preserved.
+
+    * ``EpochAugment`` must return the same shape and the same labels (mixup is
+      same-class only), and must actually change the values.
+    * SpecAugment masking must be a no-op in eval mode, so validation/test
+      inputs are never masked.
+    """
+    import torch
+    from p300vit.data.augment import EpochAugment
+    from p300vit.models.cwt_vit import CWTViT
+
+    rng = np.random.default_rng(0)
+    X = torch.from_numpy(rng.normal(size=(16, 4, 200)).astype(np.float32))
+    y = torch.tensor([0] * 8 + [1] * 8)
+    Xa, ya = EpochAugment(seed=0)(X, y)
+    assert Xa.shape == X.shape and ya.shape == y.shape
+    assert torch.equal(y, ya), "augmentation changed labels"
+    assert not torch.allclose(X, Xa), "augmentation did nothing"
+
+    model = CWTViT(n_channels=4, n_times=200, sfreq=200.0,
+                   embed_dim=64, depth=2, heads=4, mask_scalogram=True)
+    model.eval()
+    x = torch.randn(2, 4, 200)
+    with torch.no_grad():
+        a, _ = model(x)
+        b, _ = model(x)
+    assert torch.allclose(a, b), "eval-mode output is not deterministic (masking leaked)"
+
+
+
 if __name__ == "__main__":
     test_factory_and_forward()
     test_xdawn_fold_dependence()
     test_projection_feeds_model()
     test_frontend_responds_to_input()
+    test_every_band_responds_to_its_own_frequency()
+    test_scalogram_patch_coverage()
+    test_augmentation_is_label_preserving_and_eval_is_untouched()
     print("all xDAWN->CWT->ViT synthetic checks passed")

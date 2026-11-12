@@ -1,0 +1,17 @@
+{
+ "id": "mmdation/p300vit-matrix",
+ "title": "p300vit-matrix",
+ "code_file": "matrix.ipynb",
+ "language": "python",
+ "kernel_type": "notebook",
+ "is_private": true,
+ "enable_gpu": true,
+ "enable_internet": true,
+ "dataset_sources": [
+  "mmdation/sabeti-p300",
+  "mmdation/aszedeeg",
+  "mmdation/p300-ieee"
+ ],
+ "competition_sources": [],
+ "kernel_sources": []
+}

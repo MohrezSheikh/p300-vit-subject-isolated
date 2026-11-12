@@ -37,6 +37,7 @@ def run_cv(
     model_factory: Callable[[], object],
     experiment_dir: Path,
     xdawn_mode: str = "xdawn",          # xdawn | none
+    augment=None,                        # training-batch augmentation (leak-free)
 ) -> Dict:
     """Run the full CV protocol and write every artifact to experiment_dir."""
     from ..config import set_seed
@@ -97,7 +98,7 @@ def run_cv(
             model, cfg,
             X_tr[it_mask], y_tr[it_mask], sid_tr[it_mask],
             X_tr[va_mask], y_tr[va_mask], sid_tr[va_mask],
-            fold_dir=fold_dir, fold_seed=fold,
+            fold_dir=fold_dir, fold_seed=fold, augment=augment,
         )
 
         # ---- final test prediction ------------------------------------- #

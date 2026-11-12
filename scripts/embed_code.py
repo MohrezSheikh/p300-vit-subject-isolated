@@ -22,7 +22,7 @@ BLOB_CELL_MARKER = "EMBEDDED-CODE-BLOB"
 
 EXCLUDE_DIRS = {"__pycache__", ".git", ".venv", "venv", "results", "figures", "cache",
                 ".ipynb_checkpoints", ".pytest_cache", "kaggle_audit", "kaggle"}
-EXCLUDE_PREFIXES = ("kaggle_results", "embedded_code")
+EXCLUDE_PREFIXES = ("kaggle_results", "embedded_code", "results_", "matrix_outputs")
 EXCLUDE_DIR_PREFIXES = (".venv", "venv", ".eggs")
 EXCLUDE_FILES = {"p300former-paper.zip", "kaggle_runner.ipynb"}
 

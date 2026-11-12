@@ -1,0 +1,47 @@
+{
+ "xdawnvit_local": {
+  "n_subjects": 37,
+  "pooled_oof_auc_raw": 0.760233918128655,
+  "pooled_oof_auc_calibrated": 0.7660818713450293,
+  "fold_mean_auc": 0.7791666666666667,
+  "fold_sd_auc": 0.2112298642606096,
+  "accuracy_calibrated_at_0.5": 0.7027027027027027,
+  "calibration": {
+   "brier": 0.2078346071185898,
+   "log_loss": 0.6039397316076762,
+   "ece_15bin": 0.1291016552356123,
+   "auc_pr": 0.8302655525155747
+  },
+  "harmonization": "leakfree:threshold"
+ },
+ "xdawnvit_aszed": {
+  "n_subjects": 111,
+  "pooled_oof_auc_raw": 0.693877551020408,
+  "pooled_oof_auc_calibrated": 0.7702435813034891,
+  "fold_mean_auc": 0.7776068376068376,
+  "fold_sd_auc": 0.07517836802414771,
+  "accuracy_calibrated_at_0.5": 0.7567567567567568,
+  "calibration": {
+   "brier": 0.1948519975209043,
+   "log_loss": 0.5819535057543104,
+   "ece_15bin": 0.13898174433882032,
+   "auc_pr": 0.6334456415035706
+  },
+  "harmonization": "leakfree:threshold"
+ },
+ "xdawnvit_pooled": {
+  "n_subjects": 148,
+  "pooled_oof_auc_raw": 0.6933823529411764,
+  "pooled_oof_auc_calibrated": 0.6917279411764706,
+  "fold_mean_auc": 0.7122064210299504,
+  "fold_sd_auc": 0.07945596396851809,
+  "accuracy_calibrated_at_0.5": 0.6216216216216216,
+  "calibration": {
+   "brier": 0.22500500201142956,
+   "log_loss": 0.6502933235651813,
+   "ece_15bin": 0.11567887608563208,
+   "auc_pr": 0.6369818359388757
+  },
+  "harmonization": "leakfree:threshold"
+ }
+}

@@ -1,0 +1,17 @@
+{
+  "id": "mmdation/p300vit-figures",
+  "title": "p300vit-figures",
+  "code_file": "p300vit-figures.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_internet": false,
+  "dataset_sources": [
+    "mmdation/sabeti-p300",
+    "mmdation/p300-ieee"
+  ],
+  "kernel_sources": [
+    "mmdation/p300vit-standalone"
+  ]
+}
